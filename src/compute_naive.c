@@ -5,7 +5,41 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
   // TODO: convolve matrix a and matrix b, and store the resulting matrix in
   // output_matrix
 
-  return -1;
+  if (output_matrix == NULL) return -1;
+  
+  int rows_bound = a_matrix->rows - b_matrix->rows+1;
+  int cols_bound = a_matrix->cols - b_matrix->cols+1;
+  *output_matrix = (matrix_t*)malloc(sizeof(matrix_t));
+  if (*output_matrix == NULL) {
+      return -1;
+  }
+  (*output_matrix)->rows = rows_bound;
+  (*output_matrix)->cols = cols_bound;
+  (*output_matrix)->data = (int*)malloc(rows_bound*cols_bound*sizeof(int));
+  if ((*output_matrix)->data == NULL) {
+      free(*output_matrix);
+      return -1;
+  }
+
+
+  for (int i = 0; i < rows_bound; i++) {
+      for (int j = 0; j < cols_bound; j++) {
+          int sum = 0;
+          int ai = 0;
+          int aj = 0;
+          for (int bi = b_matrix->rows - 1; bi >= 0; bi--) {
+              for (int bj = b_matrix->cols - 1; bj >= 0; bj--) {
+                  sum += (a_matrix->data[(i+ai)*a_matrix->cols + j+aj] * b_matrix->data[bi*b_matrix->cols + bj]);
+                  aj += 1;
+              }
+              ai += 1;
+              aj = 0;
+          }
+          (*output_matrix)->data[i*cols_bound+j] = sum;
+      }
+  }
+
+  return 0;
 }
 
 // Executes a task

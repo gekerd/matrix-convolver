@@ -7,8 +7,57 @@
 int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
   // TODO: convolve matrix a and matrix b, and store the resulting matrix in
   // output_matrix
+  if (output_matrix == NULL) return -1;
+  __m256i reverse_order = _mm256_setr_epi32(7, 6, 5, 4, 3, 2, 1, 0);
 
-  return -1;
+  int rows_bound = a_matrix->rows - b_matrix->rows+1;
+  int cols_bound = a_matrix->cols - b_matrix->cols+1;
+  *output_matrix = (matrix_t*)malloc(sizeof(matrix_t));
+  if (*output_matrix == NULL) return -1;
+  (*output_matrix)->rows = rows_bound;
+  (*output_matrix)->cols = cols_bound;
+  (*output_matrix)->data = (int*)malloc(rows_bound*cols_bound*sizeof(int));
+  if ((*output_matrix)->data == NULL) {
+      free(*output_matrix);
+      return -1;
+  }
+
+  #pragma omp parallel for collapse(2)
+  for (int i=0; i < rows_bound; i++) {
+      for (int j = 0; j < cols_bound; j++) {
+          int sum = 0;
+          __m256i sum_vec = _mm256_setzero_si256();
+          int ai = i;
+          int aj = j;
+          for (int bi = b_matrix->rows -1; bi >= 0; bi--) {
+              int bj;
+              for (bj = b_matrix->cols -1; bj >= 7; bj -= 8) {
+                  __m256i a_vec = _mm256_loadu_si256((const __m256i *)&(a_matrix->data[ai*a_matrix->cols + aj]));
+                  __m256i b_vec = _mm256_loadu_si256((const __m256i *)&(b_matrix->data[bi*b_matrix->cols + bj - 7]));
+                  b_vec = _mm256_permutevar8x32_epi32(b_vec, reverse_order);
+
+                  sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vec));
+                  aj += 8;
+              }
+              for (; bj >= 0; bj--) {
+                  sum += (a_matrix->data[(ai)*a_matrix->cols + aj] * b_matrix->data[bi*b_matrix->cols +bj]);
+                  aj += 1;
+              }
+              ai += 1;
+              aj = j;
+          }
+          int temp_arr[8];
+          _mm256_storeu_si256((__m256i *) temp_arr, sum_vec);
+          sum += temp_arr[0] + temp_arr[1] + temp_arr[2] + temp_arr[3] + temp_arr[4] + 
+              temp_arr[5] + temp_arr[6] + temp_arr[7];
+          #pragma omp critical
+          {
+            (*output_matrix)->data[i*cols_bound+j] = sum;
+          }
+      }
+  }
+
+  return 0;
 }
 
 // Executes a task
