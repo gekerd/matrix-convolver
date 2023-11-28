@@ -21,11 +21,11 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
       free(*output_matrix);
       return -1;
   }
-
-  #pragma omp parallel for collapse(2)
+  int sum;
+  #pragma omp parallel for collapse(2) reduction(+:sum)
   for (int i=0; i < rows_bound; i++) {
       for (int j = 0; j < cols_bound; j++) {
-          int sum = 0;
+          sum = 0;
           __m256i sum_vec = _mm256_setzero_si256();
           int ai = i;
           int aj = j;
@@ -50,10 +50,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
           _mm256_storeu_si256((__m256i *) temp_arr, sum_vec);
           sum += temp_arr[0] + temp_arr[1] + temp_arr[2] + temp_arr[3] + temp_arr[4] + 
               temp_arr[5] + temp_arr[6] + temp_arr[7];
-          #pragma omp critical
-          {
-            (*output_matrix)->data[i*cols_bound+j] = sum;
-          }
+          (*output_matrix)->data[i*cols_bound+j] = sum;
       }
   }
 
