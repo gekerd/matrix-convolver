@@ -28,7 +28,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
   int32_t* a_data = a_matrix->data;
   int32_t* b_data = b_matrix->data;
   int32_t* out_data = (*output_matrix)->data;
-  #pragma omp parallel for collapse(2) reduction(+:sum)
+  #pragma omp parallel for collapse(2) reduction(+:sum) schedule(static, 7)
   for (int i=0; i < rows_bound; i++) {
       for (int j = 0; j < cols_bound; j++) {
           sum = 0;
