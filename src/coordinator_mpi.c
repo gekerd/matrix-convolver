@@ -25,7 +25,11 @@ int main(int argc, char *argv[]) {
   int end_task = start_task + tasks_per_proc + (rank < remainder ? 1 : 0);
 
   for (int i = start_task; i < end_task; i++) {
-      if (execute_task(i) != 0) fprintf(stderr, "Task %d failed on process %d\n", i, rank);
+      if (execute_task(i) != 0) {
+          fprintf(stderr, "Task %d failed on process %d\n", i, rank);
+          MPI_Finalize();
+          return -1;
+      }
   }
   MPI_Finalize();
   return 0;
