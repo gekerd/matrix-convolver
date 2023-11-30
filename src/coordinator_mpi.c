@@ -7,62 +7,52 @@
 #define TERMINATE -1
 
 int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Error: not enough arguments\n");
+        printf("Usage: %s [path_to_task_list]\n", argv[0]);
+        return -1;
+    }
+
+    int rank, size, num_tasks;
     MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    task_t **tasks = NULL;
 
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
-    task_t *task;
-    int num_tasks;
-
-    if (world_rank == 0) {
-        if (argc < 2) {
-            fprintf(stderr, "Error: not enough arguments\n");
-            fprintf(stderr, "Usage: %s [path_to_task_list]\n", argv[0]);
-            MPI_Abort(MPI_COMM_WORLD, 1);
-            return -1;
-        }
-
-        task_t **tasks = NULL;
-        if (!read_tasks(argv[1], &num_tasks, &tasks)) {
+    if (rank == 0) {
+        if (read_tasks(argv[1], &num_tasks, &tasks) != 0) {
             fprintf(stderr, "Error reading task list from %s\n", argv[1]);
-            MPI_Abort(MPI_COMM_WORLD, 1);
-            return -1;
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+    }
+
+    MPI_Bcast(&num_tasks, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        for (int i = 1; i < num_tasks; ++i) {
+            MPI_Send(tasks[i]->path, strlen(tasks[i]->path) + 1, MPI_CHAR, i % (size - 1) + 1, 0, MPI_COMM_WORLD);
+        }
+    }
+
+    if (rank != 0) {
+        char *path = malloc(256 * sizeof(char));
+        MPI_Recv(path, 256, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        task_t task = { .path = path };
+
+        if (execute_task(&task) != 0) {
+            fprintf(stderr, "Task execution failed on process %d\n", rank);
         }
 
-        for (int i = 0; i < num_tasks; i++) {
-            int worker_rank = (i % (world_size - 1)) + 1; // Simple round-robin
-            MPI_Send(tasks[i], sizeof(task_t), MPI_BYTE, worker_rank, 0, MPI_COMM_WORLD);
-        }
+        free(path);
+    }
 
-        for (int i = 0; i < num_tasks; i++) {
-            int worker_rank = (i % (world_size - 1)) + 1;
-            int task_result;
-            MPI_Recv(&task_result, 1, MPI_INT, worker_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            if (task_result != 0) {
-                fprintf(stderr, "Task %d failed\n", i);
-            }
-        }
-
-        for (int i = 0; i < num_tasks; i++) {
+    if (rank == 0) {
+        for (int i = 0; i < num_tasks; ++i) {
             free(tasks[i]->path);
             free(tasks[i]);
         }
         free(tasks);
-
-    } else {
-        while (1) {
-            task = (task_t *)malloc(sizeof(task_t));
-            MPI_Recv(task, sizeof(task_t), MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            int task_result = execute_task(task);
-            MPI_Send(&task_result, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-            
-            free(task->path);
-            free(task);
-        }
     }
 
     MPI_Finalize();

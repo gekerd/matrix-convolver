@@ -37,7 +37,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
           int aj = j;
           for (int bi = b_rows -1; bi >= 0; bi--) {
               int bj;
-              for (bj = b_cols -1; bj >= 15; bj -= 16) {
+              for (bj = b_cols -1; bj >= 31; bj -= 32) {
                   __m256i a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[ai*a_cols + aj]));
                   __m256i b_vec = _mm256_loadu_si256((const __m256i *)&(b_data[bi*b_cols + bj - 7]));
                   b_vec = _mm256_permutevar8x32_epi32(b_vec, reverse_order);
@@ -47,6 +47,18 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
 
                   a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[ai*a_cols + aj]));
                   b_vec = _mm256_loadu_si256((const __m256i *)&(b_data[bi*b_cols + bj - 15]));
+                  b_vec = _mm256_permutevar8x32_epi32(b_vec, reverse_order);
+                  sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vec));
+                  aj += 8;
+                  
+                  a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[ai*a_cols + aj]));
+                  b_vec = _mm256_loadu_si256((const __m256i *)&(b_data[bi*b_cols + bj - 23]));
+                  b_vec = _mm256_permutevar8x32_epi32(b_vec, reverse_order);
+                  sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vec));
+                  aj += 8;
+
+                  a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[ai*a_cols + aj]));
+                  b_vec = _mm256_loadu_si256((const __m256i *)&(b_data[bi*b_cols + bj - 31]));
                   b_vec = _mm256_permutevar8x32_epi32(b_vec, reverse_order);
                   sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vec));
                   aj += 8;
