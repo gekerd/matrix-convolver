@@ -3,13 +3,12 @@
 
 #include "compute.h"
 
-// Computes the convolution of two matrices
+// Computes the convolution of two matrices with additional speed-ups
 int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
-  // TODO: convolve matrix a and matrix b, and store the resulting matrix in
-  // output_matrix
   if (output_matrix == NULL) return -1;
   __m256i reverse_order = _mm256_setr_epi32(7, 6, 5, 4, 3, 2, 1, 0);
 
+  //Sets up size of output array
   int rows_bound = a_matrix->rows - b_matrix->rows+1;
   int cols_bound = a_matrix->cols - b_matrix->cols+1;
   int32_t a_cols = a_matrix->cols;
@@ -30,7 +29,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
   int32_t* out_data = (*output_matrix)->data;
 
   int x = b_cols / 8;
-
+  
   __m256i b_vecs[b_rows*x];
   if (b_vecs == NULL) {
       free((*output_matrix)->data);
@@ -38,6 +37,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
       return -1;
   }
 
+  // Saves vectors with the b_matrix's data in array for cache optimization
   #pragma omp parallel for
   for (int i = 0; i < b_rows; i++) {
       for (int j = 0; j < x; j++) {
@@ -45,14 +45,19 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
           b_vecs[i*x+j] = _mm256_permutevar8x32_epi32(b_vec, reverse_order);
       }
   }
-  #pragma omp parallel for collapse(2) reduction(+:sum) schedule(static, 7)
+
+  // Outer loops hold place of output matrix
+  // Multi-threading using Open MP
+  #pragma omp parallel for collapse(2) reduction(+:sum) schedule(static, 7) // OpenMP reduction for speed-up
   for (int i=0; i < rows_bound; i++) {
       for (int j = 0; j < cols_bound; j++) {
           sum = 0;
           __m256i sum_vec = _mm256_setzero_si256();
+	  // Inner Loops do convolve computations that will be placed in output matrix
           for (int bi = 0; bi < b_rows; bi++) {
               int bj = 0;
               for (bj = 0; bj < b_cols / 32 * 32; bj += 32) {
+		  // SIMD vectors used in combination with Unrolling
                   __m256i a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[(i+bi)*a_cols + (j+bj)]));
                   sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vecs[bi*x+(bj/8)]));
 
@@ -65,10 +70,12 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
                   a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[(i+bi)*a_cols + (j+bj)+24]));
                   sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vecs[bi*x+(bj/8)+3]));
               }
+	      // Handles tails that can still use SIMD vectors
               for (; bj < x*8; bj += 8) {
                   __m256i a_vec = _mm256_loadu_si256((const __m256i *)&(a_data[(i+bi)*a_cols + j+bj]));
                   sum_vec = _mm256_add_epi32(sum_vec, _mm256_mullo_epi32(a_vec, b_vecs[bi*x+(bj/8)]));
               } 
+	      // For the tail end
               for (; bj < b_cols; bj++) {
                   sum += (a_data[(i+bi)*a_cols + j + bj] * b_data[(b_rows-bi-1)*b_cols+b_cols-bj-1]);
               }
@@ -84,7 +91,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
   return 0;
 }
 
-// Executes a task
+// Tests convolve function
 int execute_task(task_t *task) {
   matrix_t *a_matrix, *b_matrix, *output_matrix;
 

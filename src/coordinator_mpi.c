@@ -6,6 +6,7 @@
 #define NEW_TASK 1
 #define TERMINATE -1
 
+// Main sped up with Open MPI
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("Error: not enough arguments\n");

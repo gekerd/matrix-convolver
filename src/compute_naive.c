@@ -2,31 +2,32 @@
 
 // Computes the convolution of two matrices
 int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
-  // TODO: convolve matrix a and matrix b, and store the resulting matrix in
-  // output_matrix
 
   if (output_matrix == NULL) return -1;
-  
-  int rows_bound = a_matrix->rows - b_matrix->rows+1;
-  int cols_bound = a_matrix->cols - b_matrix->cols+1;
+
+  // Steps up size of output matirx
+  int rows_bound = a_matrix->rows - b_matrix->rows + 1;
+  int cols_bound = a_matrix->cols - b_matrix->cols + 1;
   *output_matrix = (matrix_t*)malloc(sizeof(matrix_t));
   if (*output_matrix == NULL) {
       return -1;
   }
   (*output_matrix)->rows = rows_bound;
   (*output_matrix)->cols = cols_bound;
-  (*output_matrix)->data = (int*)malloc(rows_bound*cols_bound*sizeof(int));
+  (*output_matrix)->data = (int*)malloc(rows_bound * cols_bound * sizeof(int));
+
   if ((*output_matrix)->data == NULL) {
       free(*output_matrix);
       return -1;
   }
 
-
+  // Outer Loops to represent row and column of output matrix
   for (int i = 0; i < rows_bound; i++) {
       for (int j = 0; j < cols_bound; j++) {
           int sum = 0;
           int ai = 0;
           int aj = 0;
+	  // Inner loops does the computations for the output matrix
           for (int bi = b_matrix->rows - 1; bi >= 0; bi--) {
               for (int bj = b_matrix->cols - 1; bj >= 0; bj--) {
                   sum += (a_matrix->data[(i+ai)*a_matrix->cols + j+aj] * b_matrix->data[bi*b_matrix->cols + bj]);
@@ -42,7 +43,7 @@ int convolve(matrix_t *a_matrix, matrix_t *b_matrix, matrix_t **output_matrix) {
   return 0;
 }
 
-// Executes a task
+// Tests the convolve function
 int execute_task(task_t *task) {
   matrix_t *a_matrix, *b_matrix, *output_matrix;
 
